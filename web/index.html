@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpiritVale Bot Operations & Visual Telemetry</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Top Navigation Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <div class="brand-badge">
+                    <span class="pulse-dot"></span>
+                    <span class="brand-title">SPIRITVALE BOT MONITOR</span>
+                    <span class="version-tag">v2.4 FAST-FLOW</span>
+                </div>
+            </div>
+            
+            <div class="header-center">
+                <div class="kpi-pill">
+                    <span class="kpi-label">UPTIME</span>
+                    <span class="kpi-value" id="kpi-uptime">00:00:00</span>
+                </div>
+                <div class="kpi-pill">
+                    <span class="kpi-label">MOBS ENGAGED</span>
+                    <span class="kpi-value highlight-cyan" id="kpi-mobs">0</span>
+                </div>
+                <div class="kpi-pill">
+                    <span class="kpi-label">WARPS</span>
+                    <span class="kpi-value highlight-green" id="kpi-warps">0</span>
+                </div>
+                <div class="kpi-pill">
+                    <span class="kpi-label">RECOVERIES</span>
+                    <span class="kpi-value highlight-amber" id="kpi-recoveries">0</span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div class="status-badge" id="system-status-badge">
+                    <span class="status-indicator"></span>
+                    <span id="system-status-text">CONNECTING...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <main class="dashboard-grid">
+            <!-- Left Column: Live Screen & Overlays -->
+            <section class="panel screen-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">LIVE</span>
+                        <span>VISION SCAN MONITOR</span>
+                    </div>
+                    <div class="stream-controls">
+                        <label class="toggle-pill">
+                            <input type="checkbox" id="toggle-stream" checked>
+                            <span>Live Stream</span>
+                        </label>
+                        <button class="btn-refresh" id="btn-force-refresh">Snapshot</button>
+                    </div>
+                </div>
+
+                <div class="screen-viewport" id="screen-container">
+                    <img id="live-stream-img" src="/api/stream" alt="Bot Vision Stream" onerror="this.src='/api/latest_frame.jpg'">
+                    <div class="stream-overlay-hud">
+                        <div class="hud-tag" id="hud-fps">FPS: 15.0</div>
+                        <div class="hud-tag" id="hud-res">2561 x 1398</div>
+                        <div class="hud-tag highlight" id="hud-location">ZONE: DETECTING...</div>
+                    </div>
+                </div>
+
+                <!-- Current Action Display Bar -->
+                <div class="action-banner">
+                    <span class="action-banner-label">CURRENT ACTION:</span>
+                    <span class="action-banner-text" id="current-action-text">Initializing bot telemetry...</span>
+                </div>
+            </section>
+
+            <!-- Right Column: Scanned Telemetry & Values -->
+            <section class="panel telemetry-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">DATA</span>
+                        <span>SCANNED VALUES & TELEMETRY</span>
+                    </div>
+                    <span class="timestamp-tag" id="telemetry-timestamp">00:00:00</span>
+                </div>
+
+                <div class="telemetry-content">
+                    <!-- Workflow State Card -->
+                    <div class="state-card" id="state-card">
+                        <div class="card-subtitle">BOT WORKFLOW STATE</div>
+                        <div class="state-display" id="workflow-state-text">IDLE</div>
+                        <div class="state-description" id="workflow-state-desc">Waiting for live bot session</div>
+                    </div>
+
+                    <!-- Player Health Section -->
+                    <div class="health-card">
+                        <div class="health-header">
+                            <span class="card-subtitle">PLAYER HEALTH</span>
+                            <span class="health-percentage" id="hp-percent-text">100%</span>
+                        </div>
+                        <div class="hp-bar-track">
+                            <div class="hp-bar-fill" id="hp-bar-fill" style="width: 100%;"></div>
+                        </div>
+                        <div class="health-details">
+                            <span id="hp-status-text">Status: Healthy</span>
+                            <span id="hp-ratio-raw">Ratio: 1.000</span>
+                        </div>
+                    </div>
+
+                    <!-- Target & Monster Radar Grid -->
+                    <div class="data-subgrid">
+                        <div class="data-mini-card">
+                            <span class="mini-label">MONSTERS ONSCREEN</span>
+                            <span class="mini-value text-red" id="val-monsters-count">0</span>
+                            <span class="mini-sub" id="val-monsters-sub">No targets locked</span>
+                        </div>
+                        <div class="data-mini-card">
+                            <span class="mini-label">ACTIVE TARGET</span>
+                            <span class="mini-value text-cyan" id="val-target-coords">None</span>
+                            <span class="mini-sub" id="val-target-mode">Mode: idle</span>
+                        </div>
+                        <div class="data-mini-card">
+                            <span class="mini-label">LOCATION TYPE</span>
+                            <span class="mini-value text-green" id="val-location-type">TOWN</span>
+                            <span class="mini-sub" id="val-safezone">Safe Zone (No Attack)</span>
+                        </div>
+                        <div class="data-mini-card">
+                            <span class="mini-label">CLASS & PROFILE</span>
+                            <span class="mini-value text-gold">GUNSLINGER</span>
+                            <span class="mini-sub">Combo: 3 -> 1 -> Q/2/E</span>
+                        </div>
+                    </div>
+
+                    <!-- Detected Monster Coordinates List -->
+                    <div class="radar-box">
+                        <div class="radar-title">DETECTED TARGETS LIST</div>
+                        <div class="radar-list" id="radar-targets-list">
+                            <div class="radar-empty">Scanning for monster HP bars...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Action Logs & History -->
+        <footer class="dashboard-bottom">
+            <!-- Action History Feed -->
+            <div class="panel log-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">FEED</span>
+                        <span>REAL-TIME ACTION LOGS</span>
+                    </div>
+                    <span class="feed-count" id="action-count">0 events</span>
+                </div>
+                <div class="log-stream" id="action-log-stream">
+                    <!-- Dynamically populated log rows -->
+                </div>
+            </div>
+
+            <!-- Scan Snapshot History -->
+            <div class="panel history-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="title-icon">HISTORY</span>
+                        <span>SCAN SNAPSHOTS & AUDIT</span>
+                    </div>
+                    <span class="feed-count" id="history-count">0 scans</span>
+                </div>
+                <div class="history-strip" id="history-strip">
+                    <!-- Dynamically populated scan cards -->
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modal for Inspecting Past Scan -->
+    <div class="modal-backdrop" id="snapshot-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title" id="modal-snapshot-title">Scan Snapshot Details</span>
+                <button class="modal-close" id="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-snapshot-body">
+                <!-- Injected via app.js -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

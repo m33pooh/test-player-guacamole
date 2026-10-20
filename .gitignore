@@ -1,0 +1,82 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.pyo
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Databases & Runtime Telemetry
+*.db
+*.sqlite
+*.sqlite3
+maple/data/*.db
+data/*.db
+game_memory.json
+data/game_memory.json
+
+# Logs & Temporary Files
+logs/
+maple/logs/
+*.log
+temp/
+tmp/
+*.tmp
+
+# Debug Screenshots & Runtime Captures (Keep template directory)
+data/*.jpg
+data/*.jpeg
+data/*.png
+!data/templates/
+!data/templates/**
+capture_*.jpg
+live_*.jpg
+town_*.jpg
+user_*.jpg
+minimap_debug.png
+
+# Large Model Weights & Checkpoints (YOLO, PyTorch, GGUF, ONNX)
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+*.gguf
+models/*
+!models/.gitkeep
+maple/models/*
+!maple/models/.gitkeep
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Agent & Workspace Cache
+.agents/
+.pytest_cache/
+.mypy_cache/

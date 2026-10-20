@@ -1,0 +1,89 @@
+map_name: "Carcion: Calm Beach 3"
+recommended_level: 280
+max_map_spawn_limit: 296
+
+summon_positions:
+  erda_fountain: [30, 95]
+  sol_janus_1: [125, 60]
+
+platforms:
+  - id: "plat_beach_ground"
+    name: "Beach Ground"
+    y: 110
+    x_min: 15
+    x_max: 160
+
+  - id: "plat_coral_reef_left"
+    name: "Coral Reef Left"
+    y: 85
+    x_min: 25
+    x_max: 80
+
+  - id: "plat_coral_reef_right"
+    name: "Coral Reef Right"
+    y: 85
+    x_min: 95
+    x_max: 150
+
+  - id: "plat_sky_island"
+    name: "Sky Island Top"
+    y: 55
+    x_min: 45
+    x_max: 130
+
+connections:
+  - from: "plat_beach_ground"
+    to: "plat_coral_reef_left"
+    action: "ROPE_LIFT"
+    x_range: [30, 75]
+    cost: 1.0
+
+  - from: "plat_beach_ground"
+    to: "plat_coral_reef_right"
+    action: "ROPE_LIFT"
+    x_range: [100, 145]
+    cost: 1.0
+
+  - from: "plat_coral_reef_left"
+    to: "plat_sky_island"
+    action: "ROPE_LIFT"
+    x_range: [50, 75]
+    cost: 1.0
+
+  - from: "plat_coral_reef_right"
+    to: "plat_sky_island"
+    action: "ROPE_LIFT"
+    x_range: [100, 125]
+    cost: 1.0
+
+  - from: "plat_sky_island"
+    to: "plat_coral_reef_left"
+    action: "DOWN_JUMP"
+    x_range: [45, 80]
+    cost: 0.5
+
+  - from: "plat_sky_island"
+    to: "plat_coral_reef_right"
+    action: "DOWN_JUMP"
+    x_range: [95, 130]
+    cost: 0.5
+
+  - from: "plat_coral_reef_left"
+    to: "plat_beach_ground"
+    action: "DOWN_JUMP"
+    x_range: [25, 80]
+    cost: 0.5
+
+  - from: "plat_coral_reef_right"
+    to: "plat_beach_ground"
+    action: "DOWN_JUMP"
+    x_range: [95, 150]
+    cost: 0.5
+
+waypoints:
+  - { x: 35, y: 110, desc: "Beach Ground Left" }
+  - { x: 88, y: 110, desc: "Beach Ground Mid" }
+  - { x: 140, y: 110, desc: "Beach Ground Right" }
+  - { x: 120, y: 85, desc: "Coral Reef Right" }
+  - { x: 85, y: 55, desc: "Sky Island Top" }
+  - { x: 50, y: 85, desc: "Coral Reef Left" }

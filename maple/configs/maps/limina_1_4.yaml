@@ -1,0 +1,89 @@
+map_name: "Limina: End of the World 1-4"
+recommended_level: 255
+summon_position: [64, 112]
+
+# Minimap coordinates bounding box (x_min, y_min, x_max, y_max)
+platforms:
+  - id: "plat_bottom"
+    name: "Bottom Floor"
+    y: 112
+    x_min: 10
+    x_max: 150
+
+  - id: "plat_mid_left"
+    name: "Middle Left Platform"
+    y: 86
+    x_min: 20
+    x_max: 75
+
+  - id: "plat_mid_right"
+    name: "Middle Right Platform"
+    y: 86
+    x_min: 85
+    x_max: 140
+
+  - id: "plat_top"
+    name: "Top Platform"
+    y: 60
+    x_min: 35
+    x_max: 125
+
+connections:
+  # Upward connections (Rope Lift)
+  - from: "plat_bottom"
+    to: "plat_mid_left"
+    action: "ROPE_LIFT"
+    x_range: [25, 70]
+    cost: 1.0
+
+  - from: "plat_bottom"
+    to: "plat_mid_right"
+    action: "ROPE_LIFT"
+    x_range: [90, 135]
+    cost: 1.0
+
+  - from: "plat_mid_left"
+    to: "plat_top"
+    action: "ROPE_LIFT"
+    x_range: [40, 70]
+    cost: 1.0
+
+  - from: "plat_mid_right"
+    to: "plat_top"
+    action: "ROPE_LIFT"
+    x_range: [90, 120]
+    cost: 1.0
+
+  # Downward connections (Down+Jump)
+  - from: "plat_top"
+    to: "plat_mid_left"
+    action: "DOWN_JUMP"
+    x_range: [35, 75]
+    cost: 0.5
+
+  - from: "plat_top"
+    to: "plat_mid_right"
+    action: "DOWN_JUMP"
+    x_range: [85, 125]
+    cost: 0.5
+
+  - from: "plat_mid_left"
+    to: "plat_bottom"
+    action: "DOWN_JUMP"
+    x_range: [20, 75]
+    cost: 0.5
+
+  - from: "plat_mid_right"
+    to: "plat_bottom"
+    action: "DOWN_JUMP"
+    x_range: [85, 140]
+    cost: 0.5
+
+# Clockwise rotation waypoints on the minimap
+waypoints:
+  - { x: 25, y: 112, desc: "Bottom Left" }
+  - { x: 75, y: 112, desc: "Bottom Mid" }
+  - { x: 135, y: 112, desc: "Bottom Right" }
+  - { x: 115, y: 86, desc: "Mid Right" }
+  - { x: 80, y: 60, desc: "Top Platform" }
+  - { x: 45, y: 86, desc: "Mid Left" }

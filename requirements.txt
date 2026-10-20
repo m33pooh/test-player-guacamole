@@ -1,0 +1,8 @@
+requests
+numpy
+opencv-python
+pillow
+playwright
+pyautogui
+mss
+ultralytics

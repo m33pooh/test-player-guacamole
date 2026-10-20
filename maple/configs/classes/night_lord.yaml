@@ -1,0 +1,34 @@
+class_name: "Night Lord"
+archetype: "PROJECTILE"
+primary_stat: "LUK"
+
+skills:
+  jump: "Alt"
+  mobbing: "q"          # Showdown / Shuriken Burst
+  bossing: "w"          # Quad Star
+  summon: "s"           # Erda Fountain / Dark Flare
+  rope_lift: "v"        # 5th Job Rope Lift
+  potion: "PageDown"    # Power Elixir
+  interact: "Space"     # NPC Chat / Harvest / Rune
+  burst_1: "r"          # Spread Throw
+  burst_2: "e"          # Throwing Star Barrage
+
+summon_cooldown: 60.0
+
+buffs:
+  shadow_partner:
+    key: "1"
+    cooldown: 200.0
+  haste:
+    key: "2"
+    cooldown: 200.0
+  decent_holy_symbol:
+    key: "3"
+    cooldown: 180.0
+  shadow_shifter:
+    key: "4"
+    cooldown: 200.0
+
+strategy:
+  centralized_platform_farming: true
+  loot_cycle_interval_sec: 105
