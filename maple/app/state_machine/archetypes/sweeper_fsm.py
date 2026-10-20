@@ -8,10 +8,6 @@ from maple.app.navigation.pathfinder import Pathfinder
 class SweeperFSM:
     """
     Class Archetype: The Active Sweepers & Gauge Managers (Buccaneer, Adele, Dawn Warrior).
-    Farming characteristics:
-    - Buccaneer: Super Jump momentum glide while Lord of the Deep passive aura crushes mobs.
-    - Adele: Casts Order (Flying Swords) when Aether Gauge is high.
-    - Dawn Warrior: Broad-spectrum dual cleaves covering upper and lower platforms simultaneously.
     """
 
     def __init__(
@@ -28,11 +24,14 @@ class SweeperFSM:
         self.class_config = class_config
         self.map_config = map_config
 
+        movement = class_config.get("movement", {})
         skills = class_config.get("skills", {})
-        self.jump_key = skills.get("jump", "Alt")
-        self.dash_key = skills.get("dash", "Shift")
-        self.mobbing_key = skills.get("mobbing", "q")
-        self.gauge_skill_key = skills.get("gauge_skill", "w")  # Order (Adele) or Lord of Deep (Buccaneer)
+        mobbing = skills.get("main_mobbing", {})
+
+        self.jump_key = movement.get("jump_key") or skills.get("jump", "Alt")
+        self.dash_key = movement.get("dash_key") or skills.get("dash", "Shift")
+        self.mobbing_key = mobbing.get("key", "q") if isinstance(mobbing, dict) else skills.get("mobbing", "q")
+        self.gauge_skill_key = skills.get("gauge_skill", "w")
 
         self.last_gauge_cast = 0.0
 
@@ -50,17 +49,18 @@ class SweeperFSM:
         dx = tx - px
         now = time.time()
 
-        # 1. Manage Gauge Skill (e.g. Order / Flying Swords / Lord of the Deep)
+        # 1. Manage Gauge Skill (Lord of the Deep / Order)
         gauge_ratio = class_state.get("gauge_ratio", 1.0) if class_state else 1.0
-        if gauge_ratio > 0.50 and (now - self.last_gauge_cast) > 6.0:
-            print(f"[SweeperFSM] Gauge healthy ({gauge_ratio*100:.0f}%), casting gauge ability ({self.gauge_skill_key})...", flush=True)
+        lord_active = class_state.get("lord_of_deep_active", False) if class_state else False
+
+        if gauge_ratio > 0.50 and not lord_active and (now - self.last_gauge_cast) > 6.0:
+            print(f"[SweeperFSM] Gauge healthy ({gauge_ratio*100:.0f}%), activating gauge skill ({self.gauge_skill_key})...", flush=True)
             self.driver.press_key(self.gauge_skill_key)
             self.last_gauge_cast = now
 
         # 2. High-speed Super Jump Glide
         direction = "right" if dx > 0 else "left"
         self.macros.buccaneer_super_jump(direction=direction, dash_key=self.dash_key, jump_key=self.jump_key)
-        # Optional cleave
         self.driver.press_key(self.mobbing_key)
 
         return f"SUPER_JUMP_SWEEP_{direction.upper()}"

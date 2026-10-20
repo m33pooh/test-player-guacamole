@@ -8,10 +8,6 @@ from maple.app.navigation.pathfinder import Pathfinder
 class SummonerFSM:
     """
     Class Archetype: The Micro-Summon & Area Controllers (Lara, Corsair, Kanna).
-    Farming characteristics:
-    - High reliance on multi-station summons.
-    - Lara: Walks onto Dragon Veins (River, Wind, Sun) and casts Eruption.
-    - Cycle & Refresh: Refreshes active ground installations every 15-18 seconds.
     """
 
     def __init__(
@@ -28,14 +24,18 @@ class SummonerFSM:
         self.class_config = class_config
         self.map_config = map_config
 
+        movement = class_config.get("movement", {})
         skills = class_config.get("skills", {})
-        self.jump_key = skills.get("jump", "Alt")
-        self.mobbing_key = skills.get("mobbing", "q")
+        mobbing = skills.get("main_mobbing", {})
+
+        self.jump_key = movement.get("jump_key") or skills.get("jump", "Alt")
+        self.mobbing_key = mobbing.get("key", "q") if isinstance(mobbing, dict) else skills.get("mobbing", "q")
         self.eruption_key = skills.get("eruption", "w")
         self.manifestation_key = skills.get("manifestation", "e")
 
+        strategy = class_config.get("strategy", {})
         self.last_refresh_time = 0.0
-        self.refresh_interval = 16.0  # Lara 15-18s refresh cycle
+        self.refresh_interval = float(strategy.get("vein_refresh_interval_sec", 16.0))
 
     def execute_step(
         self,
@@ -53,7 +53,6 @@ class SummonerFSM:
         if class_state and "detected_veins" in class_state:
             veins = class_state.get("detected_veins", [])
             for v in veins:
-                # If standing on or close to vein (screen coords converted to relative proximity)
                 if (now - self.last_refresh_time) > self.refresh_interval:
                     print(f"[SummonerFSM] Standing on Dragon Vein ({v['type']}), casting Eruption ({self.eruption_key})...", flush=True)
                     self.driver.press_key(self.eruption_key)
@@ -65,6 +64,9 @@ class SummonerFSM:
         dx = tx - px
         direction = "right" if dx > 0 else "left"
 
-        self.driver.walk(direction=direction, duration=0.20)
-        self.driver.press_key(self.mobbing_key)
+        if abs(dx) > 28:
+            self.macros.flash_jump_attack(direction=direction, jump_key=self.jump_key, attack_key=self.mobbing_key)
+        else:
+            self.driver.walk(direction=direction, duration=0.20)
+            self.driver.press_key(self.mobbing_key)
         return "SUMMONER_SWEEP"
