@@ -165,19 +165,40 @@ class MapleStoryAgent:
                     wp = self.rotation_engine.get_current_waypoint()
                     minimap_state["player_pos"] = [wp["x"], wp["y"]] if wp else [64, 112]
 
-                security_state = {"captcha_detected": False, "white_room": False}
-
                 # 3. SLOW PATH: Periodic Strategic Planning & VLM Anomaly Check
+                security_state = {"captcha_detected": False, "white_room": False}
                 if (t0 - self.last_slow_path_time) >= self.slow_path_interval:
+                    # 3.1 VLM Security & Anti-Bot Inspection
+                    if not self.simulate:
+                        vlm_res = self.vlm_inspector.inspect_scene(frame)
+                        if isinstance(vlm_res, dict):
+                            security_state["captcha_detected"] = bool(vlm_res.get("captcha_detected", False))
+                            security_state["white_room"] = bool(vlm_res.get("white_room", False))
+
+                    # 3.2 Performance & One-Shot Efficiency Check
                     metrics = self.memory_db.get_summary_metrics()
-                    print(f"\n[Slow Path] Session Metrics: Kills={metrics['session_kills']} | Kills/min={metrics['kills_per_minute']} | Runes={metrics['runes_solved']} ({metrics['rune_success_rate']}%)", flush=True)
+                    print(
+                        f"\n[Slow Path] Session Metrics: Kills={metrics['session_kills']} | "
+                        f"Kills/min={metrics['kills_per_minute']} | Runes={metrics['runes_solved']} ({metrics['rune_success_rate']}%)",
+                        flush=True,
+                    )
 
-                    # 5.1 One-Shot Efficiency Check
                     max_spawn = self.map_config.get("max_map_spawn_limit", 290.0)
-                    one_shot_res = self.planner.evaluate_one_shot_efficiency(metrics['kills_per_minute'], max_spawn_cap=max_spawn)
-                    print(f"[Slow Path] One-Shot Status: {one_shot_res.get('status')} | Efficiency: {one_shot_res.get('efficiency_ratio')} | {one_shot_res.get('recommendation')}", flush=True)
+                    one_shot_res = self.planner.evaluate_one_shot_efficiency(metrics["kills_per_minute"], max_spawn_cap=max_spawn)
+                    print(
+                        f"[Slow Path] One-Shot Status: {one_shot_res.get('status')} | "
+                        f"Efficiency: {one_shot_res.get('efficiency_ratio')} | {one_shot_res.get('recommendation')}",
+                        flush=True,
+                    )
 
-                    # Rotation Recommendation
+                    # 3.3 Dynamic Summon Optimization (Section 5.2)
+                    clusters = mob_state.get("clusters", [])
+                    if clusters and self.rotation_engine.loot_engine.summon_locations:
+                        residual_coords = [[c["center_x"], c["center_y"]] for c in clusters]
+                        cur_s = self.rotation_engine.loot_engine.summon_locations[0]
+                        self.planner.optimize_summon_placement(residual_coords, cur_s)
+
+                    # 3.4 LLM Rotation Evaluation
                     plan_res = self.planner.evaluate_rotation_efficiency(
                         metrics=metrics,
                         map_name=self.map_config.get("map_name", ""),

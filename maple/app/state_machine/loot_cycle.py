@@ -1,16 +1,14 @@
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from maple.app.controller.input_driver import GuacamoleInputDriver
 from maple.app.navigation.pathfinder import Pathfinder
 
 
 class LootCycleEngine:
     """
-    15-Cycle Loot & Refresh Engine.
-    Implements Section 5.3 of maplev2.md:
-    - Cycle 1 - 13 (Kill Focus): High-tempo mobbing in core zone without detouring.
-    - Cycle 14 - 15 (Loot & Refresh Cycle): Routes to Summon stations (Erda Fountain, Sol Janus)
-      to sweep all accumulated Meso bags before the 120s despawn window, re-casting summons.
+    15-Cycle Multi-Station Loot & Refresh Engine.
+    Routes through ALL summon stations (Erda Fountain, Sol Janus, etc.) sequentially
+    during cycles 14-15 before returning to kill-focus rotation.
     """
 
     def __init__(
@@ -29,57 +27,70 @@ class LootCycleEngine:
 
         self.current_cycle = 1
         self.summon_locations: List[List[int]] = []
+        self.current_station_idx = 0
 
-        # Load summon stations from map config
         summons = map_config.get("summon_positions", {})
         if isinstance(summons, dict):
             self.summon_locations = list(summons.values())
         elif isinstance(summons, list):
             self.summon_locations = summons
         else:
-            self.summon_locations = [map_config.get("summon_position", [64, 112])]
+            default_pos = map_config.get("summon_position")
+            if default_pos:
+                self.summon_locations = [default_pos]
 
         self.is_looting = False
 
     def on_waypoint_loop_completed(self):
-        """
-        Called when character completes 1 full waypoint cycle.
-        """
         self.current_cycle = (self.current_cycle % self.total_cycle_count) + 1
+        was_looting = self.is_looting
         self.is_looting = (self.current_cycle >= self.loot_cycles_start)
-        if self.is_looting:
-            print(f"[LootCycleEngine] Cycle #{self.current_cycle}/{self.total_cycle_count} [LOOT & REFRESH PHASE ACTIVE]", flush=True)
+        if self.is_looting and not was_looting:
+            self.current_station_idx = 0
+            print(
+                f"[LootCycleEngine] Cycle #{self.current_cycle}/{self.total_cycle_count} "
+                f"[LOOT & REFRESH PHASE ACTIVE - {len(self.summon_locations)} stations]",
+                flush=True,
+            )
         else:
             print(f"[LootCycleEngine] Cycle #{self.current_cycle}/{self.total_cycle_count} [KILL FOCUS PHASE]", flush=True)
 
     def execute_loot_sweep(self, player_pos: List[int]) -> str:
-        """
-        Routes character through summon locations to collect Meso bags.
-        """
         if not player_pos or not self.summon_locations:
-            return "NO_SUMMON_TARGETS"
+            return "ALL_STATIONS_LOOTED"
+
+        if self.current_station_idx >= len(self.summon_locations):
+            self.current_station_idx = 0
+            return "ALL_STATIONS_LOOTED"
 
         px, py = player_pos[0], player_pos[1]
-        # Find nearest summon station not yet reached
-        target_s = self.summon_locations[0]
+        target_s = self.summon_locations[self.current_station_idx]
         sx, sy = target_s[0], target_s[1]
         dist = ((px - sx) ** 2 + (py - sy) ** 2) ** 0.5
 
-        if dist < 8:
-            print(f"[LootCycleEngine] Sweeping meso bags at summon station ({sx}, {sy}). Refreshing summon...", flush=True)
-            self.driver.press_combo(["ArrowDown", "w"])  # Refresh summon
+        if dist <= 10:
+            print(
+                f"[LootCycleEngine] Swept station #{self.current_station_idx+1} at ({sx}, {sy}). Refreshing summon...",
+                flush=True,
+            )
+            self.driver.press_combo(["ArrowDown", "s"])
             time.sleep(0.1)
-            return "LOOTED_STATION"
+            self.current_station_idx += 1
+            if self.current_station_idx >= len(self.summon_locations):
+                self.current_station_idx = 0
+                return "ALL_STATIONS_LOOTED"
+            return f"STATION_{self.current_station_idx}_LOOTED"
 
         steps = self.pathfinder.plan_path(px, py, sx, sy)
         if steps:
             s = steps[0]
-            if s.get("action") == "FLASH_JUMP":
+            act = s.get("action")
+            if act == "FLASH_JUMP":
                 self.driver.flash_jump(direction=s.get("direction", "right"))
-            elif s.get("action") == "DOWN_JUMP":
+            elif act == "DOWN_JUMP":
                 self.driver.down_jump()
-            elif s.get("action") == "ROPE_LIFT":
+            elif act == "ROPE_LIFT":
                 self.driver.rope_lift()
             else:
                 self.driver.walk(direction=s.get("direction", "right"), duration=0.25)
-        return "ROUTING_TO_LOOT"
+        return f"ROUTING_TO_STATION_{self.current_station_idx+1}"

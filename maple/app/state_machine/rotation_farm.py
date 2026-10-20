@@ -1,3 +1,4 @@
+import inspect
 import time
 from typing import Dict, List, Optional, Any
 from maple.app.controller.input_driver import GuacamoleInputDriver
@@ -13,12 +14,7 @@ from maple.app.state_machine.archetypes.sweeper_fsm import SweeperFSM
 class RotationFarmEngine:
     """
     Combat & Map Rotation execution engine.
-    Supports Class Archetypes (maplev2.md Section 3):
-    - TELEPORTER (Mages/Bishop): Teleport casting, vertical reach jumps
-    - PROJECTILE (Night Lord/Assassins): Centralized platform jumping & bouncing marks
-    - SUMMONER (Lara/Corsair): Multi-summon deployment and Dragon Vein eruptions
-    - SWEEPER (Buccaneer/Adele): High-speed Super Jumps & gauge aura management
-    Also manages 15-cycle Loot & Refresh passes (Section 5.3).
+    Supports unified buff parsing across YAML schemas and 2D vertical platform navigation.
     """
 
     def __init__(
@@ -50,9 +46,35 @@ class RotationFarmEngine:
         else:
             self.archetype_engine = ProjectileFSM(driver, self.macros, pathfinder, class_config, map_config)
 
-        # Buffs tracker
-        self.buffs = class_config.get("buffs", {})
+        # Normalize buffs from either root 'buffs' (dict/list) or 'skills.buffs' (list)
+        self.normalized_buffs = self._parse_buffs(class_config)
         self.buff_timers: Dict[str, float] = {}
+
+        # Extract rope lift & jump keys
+        skills = class_config.get("skills", {})
+        movement = class_config.get("movement", {})
+        self.rope_lift_key = movement.get("rope_lift_key") or skills.get("rope_lift", "v")
+        self.jump_key = movement.get("jump_key") or skills.get("jump", "Alt")
+
+    def _parse_buffs(self, cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+        raw_buffs = cfg.get("buffs") or cfg.get("skills", {}).get("buffs", [])
+        parsed = []
+        if isinstance(raw_buffs, dict):
+            for b_name, b_data in raw_buffs.items():
+                parsed.append({
+                    "name": b_name,
+                    "key": b_data.get("key"),
+                    "cooldown": float(b_data.get("cooldown", b_data.get("cooldown_sec", 180.0))),
+                })
+        elif isinstance(raw_buffs, list):
+            for item in raw_buffs:
+                if isinstance(item, dict):
+                    parsed.append({
+                        "name": item.get("name", "buff"),
+                        "key": item.get("key"),
+                        "cooldown": float(item.get("cooldown_sec", item.get("cooldown", 180.0))),
+                    })
+        return parsed
 
     def get_current_waypoint(self) -> Optional[Dict[str, Any]]:
         if not self.waypoints:
@@ -63,7 +85,6 @@ class RotationFarmEngine:
         if self.waypoints:
             prev_idx = self.current_waypoint_idx
             self.current_waypoint_idx = (self.current_waypoint_idx + 1) % len(self.waypoints)
-            # Full loop completed
             if self.current_waypoint_idx == 0 and prev_idx == len(self.waypoints) - 1:
                 self.loot_engine.on_waypoint_loop_completed()
 
@@ -72,9 +93,6 @@ class RotationFarmEngine:
         player_pos: List[int],
         class_state: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """
-        Executes one step in the farming rotation cycle.
-        """
         if not player_pos or len(player_pos) < 2:
             return "NO_PLAYER_POS"
 
@@ -82,25 +100,25 @@ class RotationFarmEngine:
         now = time.time()
 
         # 1. Cast buffs if off cooldown
-        for buff_name, b_info in self.buffs.items():
-            b_key = b_info.get("key")
-            b_cd = b_info.get("cooldown", b_info.get("cooldown_sec", 180.0))
-            last_t = self.buff_timers.get(buff_name, 0.0)
-            if (now - last_t) > b_cd and b_key:
-                print(f"[RotationFarm] Casting buff {buff_name} ({b_key})...", flush=True)
+        for b in self.normalized_buffs:
+            b_name = b["name"]
+            b_key = b["key"]
+            b_cd = b["cooldown"]
+            last_t = self.buff_timers.get(b_name, 0.0)
+            if b_key and (now - last_t) > b_cd:
+                print(f"[RotationFarm] Casting buff {b_name} ({b_key})...", flush=True)
                 self.driver.press_key(b_key)
-                self.buff_timers[buff_name] = now
+                self.buff_timers[b_name] = now
                 time.sleep(0.08)
 
         # 2. Check if currently in Loot Cycle (cycles 14-15)
         if self.loot_engine.is_looting:
             loot_act = self.loot_engine.execute_loot_sweep(player_pos)
-            if loot_act == "LOOTED_STATION":
-                # Return to regular rotation after sweeping
+            if loot_act == "ALL_STATIONS_LOOTED":
                 self.loot_engine.is_looting = False
             return f"LOOT_CYCLE_{loot_act}"
 
-        # 3. Navigate towards current waypoint
+        # 3. Check current waypoint distance
         wp = self.get_current_waypoint()
         if not wp:
             return "NO_WAYPOINTS"
@@ -113,11 +131,27 @@ class RotationFarmEngine:
             self.advance_waypoint()
             return "WAYPOINT_REACHED"
 
-        # 4. Delegate to Class Archetype Engine
+        # 4. Vertical Platform Pathfinding Check (Rope Lift / Down+Jump)
+        # If player is on a different vertical platform level (|ty - py| > 15), use Pathfinder first
+        if abs(ty - py) > 15 and not isinstance(self.archetype_engine, TeleporterFSM):
+            steps = self.pathfinder.plan_path(px, py, tx, ty)
+            if steps:
+                first_step = steps[0]
+                act = first_step.get("action")
+                if act == "ROPE_LIFT":
+                    print(f"[RotationFarm] Ascending platform via Rope Lift ({self.rope_lift_key}) -> target Y={ty}", flush=True)
+                    self.macros.rope_lift(rope_key=self.rope_lift_key)
+                    time.sleep(0.6)
+                    return "VERTICAL_ROPE_LIFT"
+                elif act == "DOWN_JUMP":
+                    print(f"[RotationFarm] Dropping down platform via Down+Jump -> target Y={ty}", flush=True)
+                    self.macros.down_jump(jump_key=self.jump_key)
+                    time.sleep(0.35)
+                    return "VERTICAL_DOWN_JUMP"
+
+        # 5. Delegate Horizontal Combat & Movement to Class Archetype Engine
         if hasattr(self.archetype_engine, "execute_step"):
             try:
-                # Some archetypes accept class_state
-                import inspect
                 sig = inspect.signature(self.archetype_engine.execute_step)
                 if len(sig.parameters) >= 3:
                     return self.archetype_engine.execute_step(player_pos, wp, class_state)
