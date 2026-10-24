@@ -30,6 +30,9 @@ class ChannelSurfer:
         Updates tracking timer.
         Returns True if a channel change should be triggered.
         """
+        if self.ks_threshold_sec <= 0:
+            return False
+
         now = time.time()
         if other_players_count > 0:
             if self.other_player_first_seen == 0.0:

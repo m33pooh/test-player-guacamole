@@ -33,20 +33,23 @@ class MapleStateMachine:
         rotation_engine: RotationFarmEngine,
         rune_engine: RuneSolvingEngine,
         channel_surfer: ChannelSurfer,
-        memory_db: MemoryDB,
-        potion_key: str = "PageDown",
+        memory_db: Optional[MemoryDB] = None,
+        potion_key: str = "d",
+        mana_potion_key: str = "f",
         buff_sync: Optional[BuffSynchronizer] = None,
     ):
         self.driver = driver
         self.rotation_engine = rotation_engine
         self.rune_engine = rune_engine
         self.channel_surfer = channel_surfer
-        self.memory_db = memory_db
+        self.memory_db = memory_db or MemoryDB()
         self.potion_key = potion_key
+        self.mana_potion_key = mana_potion_key
         self.buff_sync = buff_sync or BuffSynchronizer()
 
         self.current_state = MapleState.ROTATION_FARM
         self.last_potion_time = 0.0
+        self.last_mana_potion_time = 0.0
         self.prev_exp = 0.0
         self.state_enter_time = time.time()
 
@@ -87,11 +90,22 @@ class MapleStateMachine:
             time.sleep(2.0)
             return {"state": self.current_state.value, "action": "RESPAWN"}
 
-        # 3. Emergency HP Recovery (Non-blocking instant key tap)
-        if hp_ratio < 0.50 and (now - self.last_potion_time) > 0.5:
-            print(f"[CoreFSM] Low HP ({hp_ratio*100:.0f}%)! Pressing potion ({self.potion_key})...", flush=True)
+        # 3. Emergency HP & MP Recovery (Non-blocking instant key tap)
+        if hp_ratio < 0.70 and (now - self.last_potion_time) > 0.5:
+            print(f"[CoreFSM] Low HP ({hp_ratio*100:.0f}%)! Pressing HP potion ({self.potion_key})...", flush=True)
             self.driver.tap_key(self.potion_key)
             self.last_potion_time = now
+
+        if mp_ratio < 0.30 and (now - self.last_mana_potion_time) > 2.0:
+            if getattr(self, "mana_potion_attempts", 0) < 3:
+                print(f"[CoreFSM] Low MP ({mp_ratio*100:.0f}%)! Pressing MP potion ({self.mana_potion_key})...", flush=True)
+                self.driver.tap_key(self.mana_potion_key)
+                self.mana_potion_attempts = getattr(self, "mana_potion_attempts", 0) + 1
+                self.last_mana_potion_time = now
+            elif (now - self.last_mana_potion_time) > 30.0:
+                self.mana_potion_attempts = 0
+        elif mp_ratio >= 0.30:
+            self.mana_potion_attempts = 0
 
         # 4. Anti-KS / Channel Surfing Check
         if self.channel_surfer.update_other_players(other_players_count):
@@ -138,12 +152,14 @@ class MapleStateMachine:
 
         # 7. Default State: Map Rotation Farming
         self.current_state = MapleState.ROTATION_FARM
-        action_str = self.rotation_engine.execute_rotation_step(player_pos, class_state=class_state)
+        action_str = self.rotation_engine.execute_rotation_step(player_pos, class_state=class_state, frame=frame)
 
-        # Estimate kills from mob clusters cleared
+        # Estimate kills from mob clusters cleared or confirmed kills
         total_mobs = mob_state.get("total_mobs", 0)
-        if "ATTACK" in action_str or "CAST" in action_str or "SWEEP" in action_str:
-            estimated_kills = max(1, min(8, total_mobs))
+        if "KILL" in action_str:
+            self.memory_db.record_kill(1)
+        elif any(k in action_str for k in ["ATTACK", "CAST", "SWEEP", "ARCHER", "PATROL"]):
+            estimated_kills = max(1, min(8, total_mobs or 1))
             self.memory_db.record_kill(estimated_kills)
 
         self.memory_db.record_telemetry(

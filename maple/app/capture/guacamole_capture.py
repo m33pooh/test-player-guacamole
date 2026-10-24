@@ -23,19 +23,28 @@ class GuacamoleCapture:
         guacamole_url: Optional[str] = None,
         cdp_endpoint: str = "http://localhost:9222",
         headless: bool = False,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        user_data_dir: Optional[str] = None,
     ):
         self.guacamole_url = guacamole_url or os.getenv(
             "GUACAMOLE_URL",
-            "http://localhost:60289/guacamole/#/client/UkRQIENvbm5lY3Rpb24AYwBkZWZhdWx0",
+            "http://localhost:8080/guacamole/#/client/UkRQIENvbm5lY3Rpb24AYwBkZWZhdWx0",
         )
         self.cdp_endpoint = cdp_endpoint
         self.headless = headless
+        self.username = username or os.getenv("GUACAMOLE_USER")
+        self.password = password or os.getenv("GUACAMOLE_PASS")
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        default_session_dir = os.path.join(base_dir, "data", "browser_session")
+        self.user_data_dir = user_data_dir or default_session_dir
 
         self._playwright = None
         self._browser: Optional[Browser] = None
         self._context: Optional[BrowserContext] = None
         self._page: Optional[Page] = None
 
+        self._game_crop_bounds: Optional[Tuple[int, int, int, int]] = None
         self.last_capture_time = 0.0
         self.fps = 0.0
         self.frame_count = 0
@@ -44,57 +53,134 @@ class GuacamoleCapture:
     def page(self) -> Optional[Page]:
         return self._page
 
+    def _find_chrome_executable(self) -> Optional[str]:
+        candidates = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                return c
+        return None
+
+    def _ensure_canvas_ready(self, timeout: float = 60.0) -> bool:
+        if self._page is None:
+            return False
+
+        is_parsec = "parsec" in self.guacamole_url.lower()
+
+        if is_parsec:
+            print(f"[ParsecCapture] Waiting for live game video stream (timeout {timeout}s)...", flush=True)
+            t_start = time.time()
+            prompted = False
+            while time.time() - t_start < timeout:
+                # In Parsec web client, the active game stream is rendered into a <video> element
+                video_el = self._page.query_selector("video")
+                if video_el:
+                    print("[ParsecCapture] Live game video stream detected and active!", flush=True)
+                    return True
+
+                # Check if at login screen
+                pwd_input = self._page.query_selector("input[type='password']")
+                if pwd_input and not prompted:
+                    print(
+                        "[ParsecCapture] Parsec Login required! Please log in to Parsec in the opened browser window.",
+                        flush=True,
+                    )
+                    prompted = True
+
+                time.sleep(1.0)
+
+            print(f"[ParsecCapture Warning] Video stream not detected within {timeout}s. Current URL: {self._page.url}", flush=True)
+            return False
+
+        else:
+            # Guacamole display canvas
+            selectors = "#display, .guac-display, canvas"
+            stream_el = self._page.query_selector(selectors)
+            if stream_el:
+                print("[GuacamoleCapture] Remote canvas active.", flush=True)
+                return True
+
+            # Check for login inputs
+            user_input = self._page.query_selector("input[type='text']")
+            pwd_input = self._page.query_selector("input[type='password']")
+            btn = self._page.query_selector("input[type='submit'], button[type='submit'], button")
+
+            if pwd_input and self.username and self.password:
+                print(f"[GuacamoleCapture] Attempting auto-login for user '{self.username}'...", flush=True)
+                if user_input:
+                    user_input.fill(self.username)
+                pwd_input.fill(self.password)
+                if btn:
+                    btn.click()
+                time.sleep(2.0)
+            elif pwd_input:
+                print(
+                    "[GuacamoleCapture] Login screen detected. Please log into Guacamole in the opened browser window.",
+                    flush=True,
+                )
+
+            # Poll for canvas up to timeout seconds
+            print(f"[GuacamoleCapture] Waiting up to {timeout}s for connection canvas...", flush=True)
+            t_start = time.time()
+            while time.time() - t_start < timeout:
+                stream_el = self._page.query_selector(selectors)
+                if stream_el:
+                    print("[GuacamoleCapture] Remote desktop canvas detected and verified active.", flush=True)
+                    return True
+                time.sleep(1.0)
+
+            print(
+                f"[GuacamoleCapture Warning] Canvas not detected within {timeout}s. Current URL: {self._page.url}",
+                flush=True,
+            )
+            return False
+
     def connect(self) -> bool:
         """
-        Connects to browser via CDP or launches a new browser instance.
+        Connects to browser via CDP or launches a new visible browser instance with persistent profile.
         """
         if not HAS_PLAYWRIGHT:
-            print("[GuacamoleCapture] Playwright not found in environment.", flush=True)
+            print("[WebCapture] Playwright not found in environment.", flush=True)
             return False
 
         self._playwright = sync_playwright().start()
 
+        target_keyword = "parsec" if "parsec" in self.guacamole_url.lower() else "guacamole"
+
         # 1. Try CDP connection to existing browser session
         try:
-            print(f"[GuacamoleCapture] Connecting to CDP at {self.cdp_endpoint}...", flush=True)
-            self._browser = self._playwright.chromium.connect_over_cdp(self.cdp_endpoint, timeout=3000)
+            print(f"[WebCapture] Connecting to CDP at {self.cdp_endpoint}...", flush=True)
+            self._browser = self._playwright.chromium.connect_over_cdp(self.cdp_endpoint, timeout=2500)
             self._context = self._browser.contexts[0]
 
-            # Find existing Guacamole page
+            # Find existing remote tab (Parsec, MapleStory, or Guacamole)
             target_page = None
             for p in self._context.pages:
-                if "guacamole" in p.url.lower():
+                url_l = p.url.lower()
+                try:
+                    title_l = (p.title() or "").lower()
+                except Exception:
+                    title_l = ""
+                if any(k in url_l or k in title_l for k in ["parsec", "maple", "guacamole"]):
                     target_page = p
                     break
 
+            if not target_page and len(self._context.pages) > 0:
+                target_page = self._context.pages[0]
+
             if target_page:
                 self._page = target_page
-                print(f"[GuacamoleCapture] Attached to existing Guacamole tab: {self._page.url}", flush=True)
+                print(f"[WebCapture] Attached directly to existing browser tab: {self._page.url}", flush=True)
+                return True
             else:
-                print(f"[GuacamoleCapture] Guacamole tab not open, navigating to {self.guacamole_url}...", flush=True)
-                self._page = self._context.new_page()
-                self._page.goto(self.guacamole_url, timeout=15000)
-
-            self._page.bring_to_front()
-            return True
+                print("[WebCapture Warning] No matching open tab found in existing browser.", flush=True)
+                return False
 
         except Exception as cdp_err:
-            print(f"[GuacamoleCapture] CDP not available ({cdp_err}). Launching standalone Chromium...", flush=True)
-
-        # 2. Launch standalone browser
-        try:
-            self._browser = self._playwright.chromium.launch(
-                headless=self.headless,
-                args=["--start-maximized", "--no-sandbox"],
-            )
-            self._context = self._browser.new_context(no_viewport=True)
-            self._page = self._context.new_page()
-            print(f"[GuacamoleCapture] Navigating to: {self.guacamole_url}", flush=True)
-            self._page.goto(self.guacamole_url, timeout=20000)
-            self._page.bring_to_front()
-            return True
-        except Exception as launch_err:
-            print(f"[GuacamoleCapture Error] Failed to launch browser: {launch_err}", flush=True)
+            print(f"[WebCapture] CDP connection error: {cdp_err}", flush=True)
             return False
 
     def capture_frame(self) -> Optional[np.ndarray]:
@@ -109,6 +195,24 @@ class GuacamoleCapture:
             screenshot_bytes = self._page.screenshot(type="jpeg", quality=85, timeout=2000)
             nparr = np.frombuffer(screenshot_bytes, np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+            if frame is not None:
+                cur_shape = frame.shape[:2]
+                if self._game_crop_bounds is None or getattr(self, "_last_raw_shape", None) != cur_shape:
+                    self._last_raw_shape = cur_shape
+                    sub = frame[::8, ::8]
+                    mask = np.any(sub > 15, axis=2)
+                    ys, xs = np.where(mask)
+                    if len(xs) > 100 and len(ys) > 100:
+                        y1, y2 = int(ys.min()) * 8, int(ys.max() + 1) * 8
+                        x1, x2 = int(xs.min()) * 8, int(xs.max() + 1) * 8
+                        if (x2 - x1) > 400 and (y2 - y1) > 300:
+                            self._game_crop_bounds = (y1, y2, x1, x2)
+                            print(f"[GuacamoleCapture] Auto-detected game canvas: {x2-x1}x{y2-y1} at ({x1},{y1})", flush=True)
+
+                if self._game_crop_bounds is not None:
+                    y1, y2, x1, x2 = self._game_crop_bounds
+                    frame = frame[y1:y2, x1:x2]
 
             now = time.time()
             dt = now - self.last_capture_time

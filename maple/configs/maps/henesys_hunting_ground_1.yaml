@@ -1,0 +1,23 @@
+map_name: "Henesys: Henesys Hunting Ground I"
+map_id: "henesys_hhg1"
+
+anchor_spot: [122, 64]
+safe_spot: [122, 64]
+player_screen_center: [1025, 700]
+
+island_reach:
+  left: 565
+  right: 300
+
+platform_bounds:
+  min_x: 119
+  max_x: 125
+  y: 64
+  bench_only: true
+
+loot_interval_sec: 999999.0
+
+waypoints:
+  - x: 122
+    y: 64
+    action: "TURRET_SHOOT"

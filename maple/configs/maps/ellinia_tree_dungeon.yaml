@@ -1,0 +1,26 @@
+map_name: "Ellinia: The Tree That Grew"
+recommended_level: 15
+summon_position: [75, 241]
+
+# Designate safe AFK parking spot (far left edge)
+safe_spot:
+  x: 65
+  y: 241
+  desc: "Far Left Safe Platform Edge"
+
+# Minimap coordinates bounding box (x_min, y_min, x_max, y_max)
+platforms:
+  - id: "plat_bottom"
+    name: "Bottom Floor"
+    y: 241
+    x_min: 50
+    x_max: 200
+
+connections: []
+
+# Clockwise / patrol waypoints on the minimap
+waypoints:
+  - { x: 75, y: 241, desc: "Bottom Left Platform" }
+  - { x: 120, y: 241, desc: "Bottom Center Bridge" }
+  - { x: 165, y: 241, desc: "Bottom Right Platform" }
+  - { x: 120, y: 241, desc: "Bottom Center Bridge Return" }

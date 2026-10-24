@@ -38,17 +38,14 @@ temp/
 tmp/
 *.tmp
 
-# Debug Screenshots & Runtime Captures (Keep template directory)
-data/*.jpg
-data/*.jpeg
-data/*.png
-!data/templates/
-!data/templates/**
-capture_*.jpg
-live_*.jpg
-town_*.jpg
-user_*.jpg
-minimap_debug.png
+# Images, Screenshots & Runtime Captures
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.webp
+*.gif
+maple/data/browser_session/
 
 # Large Model Weights & Checkpoints (YOLO, PyTorch, GGUF, ONNX)
 *.pt

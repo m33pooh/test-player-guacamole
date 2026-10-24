@@ -1,0 +1,24 @@
+class_name: "Archer"
+archetype: "PROJECTILE"
+primary_stat: "DEX"
+
+skills:
+  attack: "x"             # X โจมตีธรรมดา (ใช้ 0 MP)
+  mobbing: "x"            # X โจมตีหลัก (ใช้แทน C เมื่อมานาไม่พอ)
+  skill: "c"              # C Arrow Blow (สกิลเมื่อมานาพอ)
+  bossing: "x"            # X โจมตีเป้าเดี่ยว
+  jump: "Alt"             # Alt กระโดด
+  loot: "z"               # Z เก็บของ
+  potion: "d"             # D ปั๊มเลือด (Red Potion)
+  mana_potion: "f"        # F ปั๊มมานา (Blue Potion)
+  interact: "Space"       # Space คุย NPC / แก้รูน
+  chair: "Home"           # Home นั่งเก้าอี้พักผ่อนฟื้นฟูเลือด/มานาในจุดปลอดภัย
+
+buffs: {}
+
+strategy:
+  preferred_range: 150
+  backstep_on_contact: true
+  loot_after_kills: true
+  skill_cooldown: 30.0
+

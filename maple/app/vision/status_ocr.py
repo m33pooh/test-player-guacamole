@@ -40,31 +40,29 @@ class StatusOCR:
     def read_hp_ratio(self, frame: np.ndarray) -> float:
         """
         Calculates HP percentage by finding the active red fill in the HP bar.
-        Falls back to 1.0 if not found or clearly healthy.
         """
         fh, fw, _ = frame.shape
-        # Standard MapleStory HP bar location (center bottom or bottom left)
-        # Scan bottom 12% across center
-        y1, y2 = int(fh * 0.92), int(fh * 0.98)
-        x1, x2 = int(fw * 0.35), int(fw * 0.50)
+        y1, y2 = int(fh * 0.95), int(fh * 0.995)
+        x1, x2 = int(fw * 0.365), int(fw * 0.455)
         bar_crop = frame[y1:y2, x1:x2]
 
         if bar_crop.size == 0:
             return 1.0
 
-        hsv = cv2.cvtColor(bar_crop, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self.hp_lower, self.hp_upper)
+        r = bar_crop[:, :, 2].astype(int)
+        g = bar_crop[:, :, 1].astype(int)
+        b = bar_crop[:, :, 0].astype(int)
+        red_mask = (r > 150) & (g < 75) & (b < 75)
 
-        # Count red pixels along columns to find fill percentage
-        col_sums = np.sum(mask > 0, axis=0)
-        active_cols = np.where(col_sums > (bar_crop.shape[0] * 0.2))[0]
+        col_sums = np.sum(red_mask, axis=0)
+        active_cols = np.where(col_sums > 2)[0]
 
         if len(active_cols) == 0:
-            return 1.0  # Default safe assumption
+            return 1.0
 
         fill_width = active_cols[-1] - active_cols[0] + 1
         total_width = bar_crop.shape[1]
-        ratio = max(0.0, min(1.0, fill_width / max(1, total_width * 0.85)))
+        ratio = max(0.0, min(1.0, (fill_width / max(1, total_width)) / 0.82))
         return float(ratio)
 
     def read_mp_ratio(self, frame: np.ndarray) -> float:
@@ -72,25 +70,27 @@ class StatusOCR:
         Calculates MP percentage.
         """
         fh, fw, _ = frame.shape
-        y1, y2 = int(fh * 0.92), int(fh * 0.98)
-        x1, x2 = int(fw * 0.50), int(fw * 0.65)
+        y1, y2 = int(fh * 0.95), int(fh * 0.995)
+        x1, x2 = int(fw * 0.455), int(fw * 0.545)
         bar_crop = frame[y1:y2, x1:x2]
 
         if bar_crop.size == 0:
             return 1.0
 
-        hsv = cv2.cvtColor(bar_crop, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self.mp_lower, self.mp_upper)
+        r = bar_crop[:, :, 2].astype(int)
+        g = bar_crop[:, :, 1].astype(int)
+        b = bar_crop[:, :, 0].astype(int)
+        blue_mask = (b > 155) & (g < 160) & (r < 85)
 
-        col_sums = np.sum(mask > 0, axis=0)
-        active_cols = np.where(col_sums > (bar_crop.shape[0] * 0.2))[0]
+        col_sums = np.sum(blue_mask, axis=0)
+        active_cols = np.where(col_sums > 2)[0]
 
         if len(active_cols) == 0:
             return 1.0
 
         fill_width = active_cols[-1] - active_cols[0] + 1
         total_width = bar_crop.shape[1]
-        ratio = max(0.0, min(1.0, fill_width / max(1, total_width * 0.85)))
+        ratio = max(0.0, min(1.0, (fill_width / max(1, total_width)) / 0.82))
         return float(ratio)
 
     def check_is_dead(self, frame: np.ndarray) -> bool:

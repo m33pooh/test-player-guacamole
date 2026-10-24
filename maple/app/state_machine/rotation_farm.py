@@ -23,11 +23,17 @@ class RotationFarmEngine:
         pathfinder: Pathfinder,
         map_config: Dict[str, Any],
         class_config: Dict[str, Any],
+        mob_detector: Optional[Any] = None,
+        capture_fn: Optional[Any] = None,
+        mob_watcher: Optional[Any] = None,
     ):
         self.driver = driver
         self.pathfinder = pathfinder
         self.map_config = map_config
         self.class_config = class_config
+        self.mob_detector = mob_detector
+        self.capture_fn = capture_fn
+        self.mob_watcher = mob_watcher
 
         self.waypoints: List[Dict[str, Any]] = map_config.get("waypoints", [])
         self.current_waypoint_idx = 0
@@ -44,7 +50,16 @@ class RotationFarmEngine:
         elif "SWEEP" in archetype or "BUCCANEER" in archetype or "ADELE" in archetype:
             self.archetype_engine = SweeperFSM(driver, self.macros, pathfinder, class_config, map_config)
         else:
-            self.archetype_engine = ProjectileFSM(driver, self.macros, pathfinder, class_config, map_config)
+            self.archetype_engine = ProjectileFSM(
+                driver,
+                self.macros,
+                pathfinder,
+                class_config,
+                map_config,
+                mob_detector=mob_detector,
+                capture_fn=capture_fn,
+                mob_watcher=mob_watcher,
+            )
 
         # Normalize buffs from either root 'buffs' (dict/list) or 'skills.buffs' (list)
         self.normalized_buffs = self._parse_buffs(class_config)
@@ -92,6 +107,7 @@ class RotationFarmEngine:
         self,
         player_pos: List[int],
         class_state: Optional[Dict[str, Any]] = None,
+        frame: Optional[Any] = None,
     ) -> str:
         if not player_pos or len(player_pos) < 2:
             return "NO_PLAYER_POS"
@@ -125,8 +141,9 @@ class RotationFarmEngine:
 
         tx, ty = wp["x"], wp["y"]
         dist = ((tx - px) ** 2 + (ty - py) ** 2) ** 0.5
+        is_turret = wp.get("action") == "TURRET_SHOOT" or bool(self.map_config.get("anchor_spot"))
 
-        if dist <= 12:
+        if not is_turret and dist <= 12:
             print(f"[RotationFarm] Reached waypoint #{self.current_waypoint_idx+1} at ({tx}, {ty})", flush=True)
             self.advance_waypoint()
             return "WAYPOINT_REACHED"
@@ -153,7 +170,10 @@ class RotationFarmEngine:
         if hasattr(self.archetype_engine, "execute_step"):
             try:
                 sig = inspect.signature(self.archetype_engine.execute_step)
-                if len(sig.parameters) >= 3:
+                params = sig.parameters
+                if "frame" in params:
+                    return self.archetype_engine.execute_step(player_pos, wp, class_state, frame=frame)
+                elif len(params) >= 3:
                     return self.archetype_engine.execute_step(player_pos, wp, class_state)
                 else:
                     return self.archetype_engine.execute_step(player_pos, wp)
